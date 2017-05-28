@@ -9,6 +9,7 @@ namespace WDWR
     {
         static void Main(string[] args)
         {
+            Console.ReadKey();
         }
     }
 }
