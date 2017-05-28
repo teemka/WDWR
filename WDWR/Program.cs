@@ -15,8 +15,8 @@ namespace WDWR
             double[] price = { 170.0, 170.0, 170.0 };
             double[] priceStorage = { 10.0, 10.0, 10.0 };
             double[] hardness = { 8.4, 6.2, 2.0 };
-            double[] hardness3 = { 3,3,3 };
-            double[] hardness6 = { 6,6,6 };
+            double[] hardness3 = { 3, 3, 3 };
+            double[] hardness6 = { 6, 6, 6 };
             double[][] oilCost = new double[2][];
             oilCost[0] = new double[3] { 1.159550009798596e+02, 1.018115866059220e+02, 1.128780935294160e+02 };
             oilCost[1] = new double[3] { 100, 1.067537671189185e+02, 1.098041326934309e+02 };
@@ -27,23 +27,21 @@ namespace WDWR
             INumVar[][] oilBuy = new INumVar[2][];
             INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
             Cplex cplex = new Cplex();
-
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 2; i++) //Initialize oilBuy and oilProduce
+            {
+                oilBuy[i] = new INumVar[3];
+                oilProduce[i] = new INumVar[3];
+            }
+            for (int i = 0; i < 3; i++) // Initialize oilStore
             {
                 oilStore[i] = new INumVar[3];
                 for (int j = 0; j < 3; j++)
                 {
                     oilStore[i][j] = cplex.NumVar(0, 800); // Ograniczenia na pojemność magazynu                    
                 }
-                cplex.AddEq(oilStore[0][i], 200.0); // Ograniczenie na stan magazynu w grudniu                
-                cplex.AddEq(oilStore[2][i], 200.0); // Ograniczenie na stan magazynu w lutym                
-                cplex.AddEq(oilStore[1][i], cplex.Sum(cplex.Diff(oilBuy[0][i], oilProduce[0][i]), oilStore[0][i])); // (Kupowane + zmagazynowane - produkowane) w tym miesiacu = zmagazynowane w nastepnym miesiacu
-                cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
             }
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 2; i++) // Ograniczenia na miesiące
             {
-                oilBuy[i] = new INumVar[3];
-                oilProduce[i] = new INumVar[3];
                 for (int j = 0; j < 3; j++) // Ograniczenia na możliwości rafinacji
                 {
                     if (j != 2)
@@ -58,12 +56,28 @@ namespace WDWR
                 }
                 cplex.AddGe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness3, oilProduce[i])); // Hardness greater than 3
                 cplex.AddLe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness6, oilProduce[i])); // Hardness less than 6
-            }       
-            
+            }
+            for (int i = 0; i < 3; i++) // Ograniczenia na oleje
+            {
+                cplex.AddEq(oilStore[0][i], 200.0); // Ograniczenie na stan magazynu w grudniu                
+                cplex.AddEq(oilStore[2][i], 200.0); // Ograniczenie na stan magazynu w lutym                
+                cplex.AddEq(oilStore[1][i], cplex.Sum(cplex.Diff(oilBuy[0][i], oilProduce[0][i]), oilStore[0][i])); // (Kupowane + zmagazynowane - produkowane) w tym miesiacu = zmagazynowane w nastepnym miesiacu
+                cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
+            }
+
             // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
-            cplex.AddMaximize(cplex.Diff
-                (cplex.Diff(cplex.Sum(cplex.ScalProd(price, oilProduce[0]), cplex.ScalProd(price, oilProduce[1])), cplex.Sum(cplex.ScalProd(priceStorage, oilStore[1]), cplex.ScalProd(priceStorage, oilStore[2]))),
-                cplex.Sum(cplex.ScalProd(oilCost[0], oilBuy[0]), cplex.ScalProd(oilCost[1], oilBuy[1]))));
+            cplex.AddMaximize(
+                cplex.Diff(
+                    cplex.Diff(
+                        cplex.Sum(
+                            cplex.ScalProd(price, oilProduce[0]),
+                            cplex.ScalProd(price, oilProduce[1])), 
+                        cplex.Sum(
+                            cplex.ScalProd(priceStorage, oilStore[1]),
+                            cplex.ScalProd(priceStorage, oilStore[2]))),
+                    cplex.Sum(
+                        cplex.ScalProd(oilCost[0], oilBuy[0]),
+                        cplex.ScalProd(oilCost[1], oilBuy[1]))));
 
 
             if (cplex.Solve())
@@ -134,6 +148,6 @@ namespace WDWR
                 }
             }
             return oilCost;
-        }
+        }           
     }
 }
