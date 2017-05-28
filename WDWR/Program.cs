@@ -27,7 +27,7 @@ namespace WDWR
             INumVar[][] oilBuy = new INumVar[2][];
             INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
             Cplex cplex = new Cplex();
-            for (int i = 0; i < 2; i++) //Initialize oilBuy and oilProduce
+            for (int i = 0; i < 2; i++) // Initialize oilBuy and oilProduce
             {
                 oilBuy[i] = new INumVar[3];
                 oilProduce[i] = new INumVar[3];
@@ -54,6 +54,7 @@ namespace WDWR
                     }
                     oilBuy[i][j] = cplex.NumVar(0, 1070);
                 }
+                cplex.AddRange(0, cplex.Sum(oilProduce[i]), 220);
                 cplex.AddGe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness3, oilProduce[i])); // Hardness greater than 3
                 cplex.AddLe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness6, oilProduce[i])); // Hardness less than 6
             }
@@ -144,7 +145,7 @@ namespace WDWR
                     {
                         oilCost[i][j] = StudentT.Sample(excpectationVector[i + j], Math.Sqrt(variance[i + j]), 4);
                     }
-                    while (80 >= oilCost[i][j] && oilCost[i][j] >= 120);                    
+                    while (80 > oilCost[i][j] && oilCost[i][j] > 120);                    
                 }
             }
             return oilCost;
