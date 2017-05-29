@@ -54,7 +54,7 @@ namespace WDWR
                     }
                     oilBuy[i][j] = cplex.NumVar(0, 1070);
                 }
-                cplex.AddRange(0, cplex.Sum(oilProduce[i]), 220);
+                cplex.AddRange(0, cplex.Sum(oilProduce[i][0],oilProduce[i][1]), 220);
                 cplex.AddGe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness3, oilProduce[i])); // Hardness greater than 3
                 cplex.AddLe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness6, oilProduce[i])); // Hardness less than 6
             }
