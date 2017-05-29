@@ -12,17 +12,17 @@ namespace WDWR
     {
         static void Main(string[] args)
         {
+            int scenarioCount = 100000;
             double[] price = { 170.0, 170.0, 170.0 };
             double[] priceStorage = { 10.0, 10.0, 10.0 };
             double[] hardness = { 8.4, 6.2, 2.0 };
             double[] hardness3 = { 3, 3, 3 };
             double[] hardness6 = { 6, 6, 6 };
-            double[][] oilCost = new double[2][];
+            double[][] oilCostTotal = new double[2][];
+            double[] profit = new double[scenarioCount];
             List<double[][]> oilCostList = new List<double[][]>();
-            oilCost[0] = new double[3] { 1.159550009798596e+02, 1.018115866059220e+02, 1.128780935294160e+02 };
-            oilCost[1] = new double[3] { 100, 1.067537671189185e+02, 1.098041326934309e+02 };
 
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < scenarioCount; i++)
                 oilCostList.Add(GenerateRandomVector()); 
 
             INumVar[][] oilStore = new INumVar[3][];
@@ -31,6 +31,7 @@ namespace WDWR
             Cplex cplex = new Cplex();
             for (int i = 0; i < 2; i++) // Initialize oilBuy and oilProduce
             {
+                oilCostTotal[i] = new double[3];
                 oilBuy[i] = new INumVar[3];
                 oilProduce[i] = new INumVar[3];
             }
@@ -56,6 +57,7 @@ namespace WDWR
                     }
                     oilBuy[i][j] = cplex.NumVar(0, 1070);
                 }
+                cplex.AddRange(0, cplex.Sum(oilProduce[i][0], oilProduce[i][1]), 220);
                 cplex.AddGe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness3, oilProduce[i])); // Hardness greater than 3
                 cplex.AddLe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness6, oilProduce[i])); // Hardness less than 6
             }
@@ -72,16 +74,18 @@ namespace WDWR
             ILinearNumExpr BuyCost = cplex.LinearNumExpr();
             for (int i = 0; i < oilCostList.Count; i++)
             {
-                Revenue.AddTerms(price, oilProduce[0]);
-                Revenue.AddTerms(price, oilProduce[1]);
-                StorageCost.AddTerms(priceStorage, oilStore[1]);
-                StorageCost.AddTerms(priceStorage, oilStore[2]);
-                BuyCost.AddTerms(oilCostList[0][0], oilBuy[0]);
-                BuyCost.AddTerms(oilCostList[0][1], oilBuy[1]);
+                for (int j = 0; j < 2; j++) 
+                {
+                    for (int k = 0; k < 3; k++)
+                        oilCostTotal[j][k] += oilCostList[i][j][k];
+                    Revenue.AddTerms(price, oilProduce[j]);
+                    StorageCost.AddTerms(priceStorage, oilStore[j+1]);
+                    BuyCost.AddTerms(oilCostList[0][j], oilBuy[j]);
+                }                
             }
-            // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji dla 100 scenariuszy
+            // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
             cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
-            //cplex.AddMinimize(cplex.Max(cplex.Diff(srednia,)))
+            //cplex.AddMinimize(cplex.Abs(cplex.Max(cplex.Diff(srednia,))));
 
 
             if (cplex.Solve())
@@ -89,13 +93,13 @@ namespace WDWR
                 System.Console.WriteLine();
                 System.Console.WriteLine("Solution status = " + cplex.GetStatus());
                 System.Console.WriteLine();
-                System.Console.WriteLine("  = " + cplex.ObjValue);
+                System.Console.WriteLine(" Profit = " + cplex.ObjValue / oilCostList.Count);
                 Console.WriteLine();
                 for (int i = 0; i < 2; i++)
                 {
                     for (int j = 0; j < 3; j++)
                     {
-                        Console.WriteLine(" oilCost[" + i + "][" + j + "] = " + oilCost[i][j]);
+                        Console.WriteLine(" oilCostAverage[" + i + "][" + j + "] = " + oilCostTotal[i][j] / oilCostList.Count);
                     }
                 }
                 
@@ -129,8 +133,32 @@ namespace WDWR
                         System.Console.WriteLine(" oilStore[" + j + "][" + i + "] = " + cplex.GetValue(oilStore[j][i]));
                     }
                 }
-
-                System.Console.WriteLine();
+                
+                for (int i = 0; i < oilCostList.Count; i++)
+                {
+                    double revenue = 0;
+                    double storageCost = 0;
+                    double buyCost = 0;
+                    for (int j = 0; j < 2; j++)
+                    {
+                        for (int k = 0; k < 3; k++)
+                        {
+                            revenue += cplex.GetValue(oilProduce[j][k]) * 170;
+                            storageCost += cplex.GetValue(oilStore[j][k]) * 10;
+                            buyCost += cplex.GetValue(oilBuy[j][k]) * oilCostList[i][j][k];
+                        }
+                    }
+                    profit[i] = revenue - storageCost - buyCost;
+                }                
+                double risk = 0;
+                var avg = profit.Average();
+                foreach (var kek in profit)
+                {
+                    var diff = Math.Abs(kek - avg);
+                    if (diff > risk)
+                        risk = diff;
+                }
+                Console.WriteLine(" Risk =" + risk );
             }
             Console.ReadKey();
         }
@@ -144,11 +172,14 @@ namespace WDWR
                 oilCost[i] = new double[3];
                 for (int j = 0; j < 3; j++)
                 {
-                    do
-                    {
-                        oilCost[i][j] = StudentT.Sample(excpectationVector[i + j], Math.Sqrt(variance[i + j]), 4);
-                    }
-                    while (80 >= oilCost[i][j] && oilCost[i][j] >= 120);                    
+                    //do
+                    //{
+                    //    oilCost[i][j] = StudentT.Sample(excpectationVector[i*3 + j], Math.Sqrt(variance[i*3 + j]), 4);
+                    //}
+                    //while (80 >= oilCost[i][j] && oilCost[i][j] >= 120);               
+                    oilCost[i][j] = StudentT.Sample(excpectationVector[i * 3 + j], Math.Sqrt(variance[i * 3 + j]), 4);
+                    if (oilCost[i][j] < 80) oilCost[i][j] = 80;
+                    if (oilCost[i][j] > 120) oilCost[i][j] = 120;
                 }
             }
             return oilCost;
