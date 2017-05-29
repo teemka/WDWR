@@ -21,150 +21,160 @@ namespace WDWR
             double[] hardness6 = { 6, 6, 6 };
             double[][] oilCostTotal = new double[2][];
             double[] profit = new double[scenarioCount];
-            List<double[][]> oilCostList = new List<double[][]>();                        
+            List<double[][]> oilCostList = new List<double[][]>();
+            double[][] oilCost = new double[2][];
+            oilCost[0] = new double[3] { 1.159550009798596e+02, 1.018115866059220e+02, 1.128780935294160e+02 };
+            oilCost[1] = new double[3] { 100, 1.067537671189185e+02, 1.098041326934309e+02 };
 
             for (int i = 0; i < scenarioCount; i++)
             {
                 oilCostList.Add(GenerateRandomVector());
-            }                
-
-            INumVar[][] oilStore = new INumVar[3][];
-            INumVar[][] oilBuy = new INumVar[2][];
-            INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
-            Cplex cplex = new Cplex();
-            for (int i = 0; i < 2; i++) // Initialize oilBuy and oilProduce
-            {
-                oilCostTotal[i] = new double[3];
-                oilBuy[i] = new INumVar[3];
-                oilProduce[i] = new INumVar[3];
+                //oilCostList.Add(oilCost);
             }
-            for (int i = 0; i < 3; i++) // Initialize oilStore
+
+            for (int iter = 0; iter < 10; iter++)
             {
-                oilStore[i] = new INumVar[3];
-                for (int j = 0; j < 3; j++)
+                INumVar[][] oilStore = new INumVar[3][];
+                INumVar[][] oilBuy = new INumVar[2][];
+                INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
+                Cplex cplex = new Cplex();
+                for (int i = 0; i < 2; i++) // Initialize oilBuy and oilProduce
                 {
-                    oilStore[i][j] = cplex.NumVar(0, 800); // Ograniczenia na pojemność magazynu                    
+                    oilCostTotal[i] = new double[3];
+                    oilBuy[i] = new INumVar[3];
+                    oilProduce[i] = new INumVar[3];
                 }
-            }
-            for (int i = 0; i < 2; i++) // Ograniczenia na miesiące
-            {
-                for (int j = 0; j < 3; j++) // Ograniczenia na możliwości rafinacji
+                for (int i = 0; i < 3; i++) // Initialize oilStore
                 {
-                    if (j != 2)
-                    {
-                        oilProduce[i][j] = cplex.NumVar(0, 220); // Rafinacja roślinnego
-                    }
-                    else
-                    {
-                        oilProduce[i][j] = cplex.NumVar(0, 270); // Rafinacja nie-roślinnego                
-                    }
-                    oilBuy[i][j] = cplex.NumVar(0, 1070);
-                }
-                cplex.AddRange(0, cplex.Sum(oilProduce[i][0], oilProduce[i][1]), 220);
-                cplex.AddGe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness3, oilProduce[i])); // Hardness greater than 3
-                cplex.AddLe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness6, oilProduce[i])); // Hardness less than 6
-            }
-            for (int i = 0; i < 3; i++) // Ograniczenia na oleje
-            {
-                cplex.AddEq(oilStore[0][i], 200.0); // Ograniczenie na stan magazynu w grudniu                
-                cplex.AddEq(oilStore[2][i], 200.0); // Ograniczenie na stan magazynu w lutym                
-                cplex.AddEq(oilStore[1][i], cplex.Sum(cplex.Diff(oilBuy[0][i], oilProduce[0][i]), oilStore[0][i])); // (Kupowane + zmagazynowane - produkowane) w tym miesiacu = zmagazynowane w nastepnym miesiacu
-                cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
-            }
-
-
-            INumExpr[] arrayOfEq = new INumExpr[oilCostList.Count];
-            for (int i = 0; i < oilCostList.Count; i++)
-            {
-                ILinearNumExpr Revenue = cplex.LinearNumExpr();
-                ILinearNumExpr StorageCost = cplex.LinearNumExpr();
-                ILinearNumExpr BuyCost = cplex.LinearNumExpr();
-                for (int j = 0; j < 2; j++) 
-                {
-                    for (int k = 0; k < 3; k++)
-                        oilCostTotal[j][k] += oilCostList[i][j][k];
-                    Revenue.AddTerms(price, oilProduce[j]);
-                    StorageCost.AddTerms(priceStorage, oilStore[j+1]);
-                    BuyCost.AddTerms(oilCostList[0][j], oilBuy[j]);
-                }
-                arrayOfEq[i] = cplex.Diff(srednia, cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)));
-            }
-            // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
-            //cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
-            cplex.AddMinimize(cplex.Abs(cplex.Max(arrayOfEq))); 
-
-
-            if (cplex.Solve())
-            {
-                System.Console.WriteLine();
-                System.Console.WriteLine("Solution status = " + cplex.GetStatus());
-                System.Console.WriteLine();
-                System.Console.WriteLine(" Profit = " + cplex.ObjValue / oilCostList.Count);
-                Console.WriteLine();
-                for (int i = 0; i < 2; i++)
-                {
+                    oilStore[i] = new INumVar[3];
                     for (int j = 0; j < 3; j++)
                     {
-                        Console.WriteLine(" oilCostAverage[" + i + "][" + j + "] = " + oilCostTotal[i][j] / oilCostList.Count);
+                        oilStore[i][j] = cplex.NumVar(0, 800); // Ograniczenia na pojemność magazynu                    
                     }
                 }
-                
-                Console.WriteLine();
-                for (int j = 0; j < 2; j++)
+                for (int i = 0; i < 2; i++) // Ograniczenia na miesiące
                 {
-                    double hardnessTotal = 0;
-                    double sum = 0;
-                    for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 3; j++) // Ograniczenia na możliwości rafinacji
                     {
-                        System.Console.WriteLine(" oilProduce[" + j + "][" + i + "] = " + cplex.GetValue(oilProduce[j][i]));
-                        hardnessTotal += cplex.GetValue(oilProduce[j][i]) *hardness[i];
-                        sum += cplex.GetValue(oilProduce[j][i]);
+                        if (j != 2)
+                        {
+                            oilProduce[i][j] = cplex.NumVar(0, 220); // Rafinacja roślinnego
+                        }
+                        else
+                        {
+                            oilProduce[i][j] = cplex.NumVar(0, 270); // Rafinacja nie-roślinnego                
+                        }
+                        oilBuy[i][j] = cplex.NumVar(0, 1070);
                     }
-                    System.Console.WriteLine(" hardnessTotal[" + j + "] = " + hardnessTotal/sum);
-                    Console.WriteLine();
+                    cplex.AddRange(0, cplex.Sum(oilProduce[i][0], oilProduce[i][1]), 220);
+                    cplex.AddGe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness3, oilProduce[i])); // Hardness greater than 3
+                    cplex.AddLe(cplex.ScalProd(hardness, oilProduce[i]), cplex.ScalProd(hardness6, oilProduce[i])); // Hardness less than 6
                 }
-               
-                for (int j = 0; j < 2; j++)
+                for (int i = 0; i < 3; i++) // Ograniczenia na oleje
                 {
-                    for (int i = 0; i < 3; i++)
-                    {
-                        System.Console.WriteLine(" oilBuy[" + j + "][" + i + "] = " + cplex.GetValue(oilBuy[j][i]));
-                    }
+                    cplex.AddEq(oilStore[0][i], 200.0); // Ograniczenie na stan magazynu w grudniu                
+                    cplex.AddEq(oilStore[2][i], 200.0); // Ograniczenie na stan magazynu w lutym                
+                    cplex.AddEq(oilStore[1][i], cplex.Sum(cplex.Diff(oilBuy[0][i], oilProduce[0][i]), oilStore[0][i])); // (Kupowane + zmagazynowane - produkowane) w tym miesiacu = zmagazynowane w nastepnym miesiacu
+                    cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
                 }
-                Console.WriteLine();
-                for (int j = 0; j < 3; j++)
-                {
-                    for (int i = 0; i < 3; i++)
-                    {
-                        System.Console.WriteLine(" oilStore[" + j + "][" + i + "] = " + cplex.GetValue(oilStore[j][i]));
-                    }
-                }
-                
+
+
+                INumExpr[] arrayOfEq = new INumExpr[oilCostList.Count];
                 for (int i = 0; i < oilCostList.Count; i++)
                 {
-                    double revenue = 0;
-                    double storageCost = 0;
-                    double buyCost = 0;
+                    ILinearNumExpr Revenue = cplex.LinearNumExpr();
+                    ILinearNumExpr StorageCost = cplex.LinearNumExpr();
+                    ILinearNumExpr BuyCost = cplex.LinearNumExpr();
                     for (int j = 0; j < 2; j++)
                     {
                         for (int k = 0; k < 3; k++)
+                            oilCostTotal[j][k] += oilCostList[i][j][k];
+                        Revenue.AddTerms(price, oilProduce[j]);
+                        StorageCost.AddTerms(priceStorage, oilStore[j + 1]);
+                        BuyCost.AddTerms(oilCostList[0][j], oilBuy[j]);
+                    }
+                    cplex.AddLe(cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)), iter * 5000 + 20000);
+                    arrayOfEq[i] = cplex.Diff(srednia, cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)));
+                }
+                // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
+                //cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
+                cplex.AddMinimize(cplex.Abs(cplex.Max(arrayOfEq)));
+
+
+                if (cplex.Solve())
+                {
+                    System.Console.WriteLine();
+                    System.Console.WriteLine("Solution status = " + cplex.GetStatus());
+                    System.Console.WriteLine();
+                    System.Console.WriteLine(" Fn Celu = " + cplex.ObjValue);
+                    Console.WriteLine();
+                    for (int i = 0; i < 2; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
                         {
-                            revenue += cplex.GetValue(oilProduce[j][k]) * 170;
-                            storageCost += cplex.GetValue(oilStore[j][k]) * 10;
-                            buyCost += cplex.GetValue(oilBuy[j][k]) * oilCostList[i][j][k];
+                            Console.WriteLine(" oilCostAverage[" + i + "][" + j + "] = " + oilCostTotal[i][j] / oilCostList.Count);
                         }
                     }
-                    profit[i] = revenue - storageCost - buyCost;
-                }                
-                double risk = 0;
-                var avg = profit.Average();
-                foreach (var kek in profit)
-                {
-                    var diff = Math.Abs(kek - avg);
-                    if (diff > risk)
-                        risk = diff;
+
+                    Console.WriteLine();
+                    for (int j = 0; j < 2; j++)
+                    {
+                        double hardnessTotal = 0;
+                        double sum = 0;
+                        for (int i = 0; i < 3; i++)
+                        {
+                            System.Console.WriteLine(" oilProduce[" + j + "][" + i + "] = " + cplex.GetValue(oilProduce[j][i]));
+                            hardnessTotal += cplex.GetValue(oilProduce[j][i]) * hardness[i];
+                            sum += cplex.GetValue(oilProduce[j][i]);
+                        }
+                        System.Console.WriteLine(" hardnessTotal[" + j + "] = " + hardnessTotal / sum);
+                        Console.WriteLine();
+                    }
+
+                    for (int j = 0; j < 2; j++)
+                    {
+                        for (int i = 0; i < 3; i++)
+                        {
+                            System.Console.WriteLine(" oilBuy[" + j + "][" + i + "] = " + cplex.GetValue(oilBuy[j][i]));
+                        }
+                    }
+                    Console.WriteLine();
+                    for (int j = 0; j < 3; j++)
+                    {
+                        for (int i = 0; i < 3; i++)
+                        {
+                            System.Console.WriteLine(" oilStore[" + j + "][" + i + "] = " + cplex.GetValue(oilStore[j][i]));
+                        }
+                    }
+                    Console.WriteLine();
+                    for (int i = 0; i < oilCostList.Count; i++)
+                    {
+                        double revenue = 0;
+                        double storageCost = 0;
+                        double buyCost = 0;
+                        for (int j = 0; j < 2; j++)
+                        {
+                            for (int k = 0; k < 3; k++)
+                            {
+                                revenue += cplex.GetValue(oilProduce[j][k]) * 170;
+                                storageCost += cplex.GetValue(oilStore[j][k]) * 10;
+                                buyCost += cplex.GetValue(oilBuy[j][k]) * oilCostList[i][j][k];
+                            }
+                        }
+                        profit[i] = revenue - storageCost - buyCost;
+                    }
+                    double risk = 0;
+                    var avg = profit.Average();
+                    foreach (var item in profit)
+                    {
+                        var diff = Math.Abs(item - avg);
+                        if (diff > risk)
+                            risk = diff;
+                    }
+                    Console.WriteLine(" Average Profit =" + avg);
+                    Console.WriteLine(" Risk =" + risk);
+                    Console.WriteLine();
                 }
-                Console.WriteLine(" Risk =" + risk );
             }
             Console.ReadKey();
         }
