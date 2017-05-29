@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using MathNet.Numerics.Distributions;
 using ILOG.Concert;
 using ILOG.CPLEX;
+using System.Threading.Tasks;
 
 namespace WDWR
 {
@@ -12,7 +12,7 @@ namespace WDWR
     {
         static void Main(string[] args)
         {
-            int scenarioCount = 10000;
+            int scenarioCount = 10;
             double srednia = 55155.51574465;
             double[] price = { 170.0, 170.0, 170.0 };
             double[] priceStorage = { 10.0, 10.0, 10.0 };
@@ -21,6 +21,7 @@ namespace WDWR
             double[] hardness6 = { 6, 6, 6 };
             double[][] oilCostTotal = new double[2][];
             double[] profit = new double[scenarioCount];
+            double[] risk = new double[scenarioCount];
             List<double[][]> oilCostList = new List<double[][]>();
             double[][] oilCost = new double[2][];
             oilCost[0] = new double[3] { 1.159550009798596e+02, 1.018115866059220e+02, 1.128780935294160e+02 };
@@ -31,9 +32,14 @@ namespace WDWR
                 oilCostList.Add(GenerateRandomVector());
                 //oilCostList.Add(oilCost);
             }
+            System.IO.StreamWriter zad2 = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\zad2.1.csv");
+            System.IO.StreamWriter vector = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\wektor.1.csv");
+            System.IO.StreamWriter FSD = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\FSD.1.csv");
+            zad2.WriteLine("Average Profit;Risk;limes");
 
-            for (int iter = 0; iter < 10; iter++)
+            for(int iter = 0; iter < 100; iter++)
             {
+                double lim = iter * 600;
                 INumVar[][] oilStore = new INumVar[3][];
                 INumVar[][] oilBuy = new INumVar[2][];
                 INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
@@ -77,8 +83,7 @@ namespace WDWR
                     cplex.AddEq(oilStore[1][i], cplex.Sum(cplex.Diff(oilBuy[0][i], oilProduce[0][i]), oilStore[0][i])); // (Kupowane + zmagazynowane - produkowane) w tym miesiacu = zmagazynowane w nastepnym miesiacu
                     cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
                 }
-
-
+                
                 INumExpr[] arrayOfEq = new INumExpr[oilCostList.Count];
                 for (int i = 0; i < oilCostList.Count; i++)
                 {
@@ -93,13 +98,13 @@ namespace WDWR
                         StorageCost.AddTerms(priceStorage, oilStore[j + 1]);
                         BuyCost.AddTerms(oilCostList[0][j], oilBuy[j]);
                     }
-                    cplex.AddLe(cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)), iter * 5000 + 20000);
+                    cplex.AddLe(cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)), lim);
                     arrayOfEq[i] = cplex.Diff(srednia, cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)));
                 }
                 // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
                 //cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
+                // Funkcja Celu: minimazlicacja odchylenia maksymalnego ryzyka
                 cplex.AddMinimize(cplex.Abs(cplex.Max(arrayOfEq)));
-
 
                 if (cplex.Solve())
                 {
@@ -115,7 +120,6 @@ namespace WDWR
                             Console.WriteLine(" oilCostAverage[" + i + "][" + j + "] = " + oilCostTotal[i][j] / oilCostList.Count);
                         }
                     }
-
                     Console.WriteLine();
                     for (int j = 0; j < 2; j++)
                     {
@@ -130,7 +134,6 @@ namespace WDWR
                         System.Console.WriteLine(" hardnessTotal[" + j + "] = " + hardnessTotal / sum);
                         Console.WriteLine();
                     }
-
                     for (int j = 0; j < 2; j++)
                     {
                         for (int i = 0; i < 3; i++)
@@ -159,24 +162,38 @@ namespace WDWR
                                 revenue += cplex.GetValue(oilProduce[j][k]) * 170;
                                 storageCost += cplex.GetValue(oilStore[j][k]) * 10;
                                 buyCost += cplex.GetValue(oilBuy[j][k]) * oilCostList[i][j][k];
+                                if(iter==0)
+                                    vector.Write(oilCostList[i][j][k] + ";");
                             }
                         }
+                        if (iter == 0)
+                            vector.WriteLine();
                         profit[i] = revenue - storageCost - buyCost;
                     }
-                    double risk = 0;
+                    double riskMax = 0;
                     var avg = profit.Average();
-                    foreach (var item in profit)
+                    if (iter == 25 || iter == 50 || iter == 75)
+                        FSD.WriteLine(iter + ";risk");
+                    for (int i = 0; i<oilCostList.Count; i++)
                     {
-                        var diff = Math.Abs(item - avg);
-                        if (diff > risk)
-                            risk = diff;
-                    }
+                        var diff = Math.Abs(profit[i] - avg);
+                        risk[i] = diff;
+                        if(iter == 25 || iter==50 || iter==75)
+                            FSD.WriteLine(profit[i] + ";" + risk[i]);
+                        if (diff > riskMax)
+                            riskMax = diff;
+                    }                    
                     Console.WriteLine(" Average Profit =" + avg);
-                    Console.WriteLine(" Risk =" + risk);
-                    Console.WriteLine();
+                    Console.WriteLine(" Risk =" + riskMax);
+                    Console.WriteLine(" iter =" + iter);
+                    Console.WriteLine();                  
+                    
+                    zad2.WriteLine(avg + ";" + riskMax + ";" + lim);
                 }
             }
-            Console.ReadKey();
+            zad2.Close();
+            vector.Close();
+            FSD.Close();
         }
         static double[][] GenerateRandomVector()
         {
