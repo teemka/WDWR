@@ -12,7 +12,8 @@ namespace WDWR
     {
         static void Main(string[] args)
         {
-            int scenarioCount = 100000;
+            int scenarioCount = 10000;
+            double srednia = 55155.51574465;
             double[] price = { 170.0, 170.0, 170.0 };
             double[] priceStorage = { 10.0, 10.0, 10.0 };
             double[] hardness = { 8.4, 6.2, 2.0 };
@@ -20,10 +21,12 @@ namespace WDWR
             double[] hardness6 = { 6, 6, 6 };
             double[][] oilCostTotal = new double[2][];
             double[] profit = new double[scenarioCount];
-            List<double[][]> oilCostList = new List<double[][]>();
+            List<double[][]> oilCostList = new List<double[][]>();                        
 
             for (int i = 0; i < scenarioCount; i++)
-                oilCostList.Add(GenerateRandomVector()); 
+            {
+                oilCostList.Add(GenerateRandomVector());
+            }                
 
             INumVar[][] oilStore = new INumVar[3][];
             INumVar[][] oilBuy = new INumVar[2][];
@@ -69,11 +72,13 @@ namespace WDWR
                 cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
             }
 
-            ILinearNumExpr Revenue = cplex.LinearNumExpr();
-            ILinearNumExpr StorageCost = cplex.LinearNumExpr();
-            ILinearNumExpr BuyCost = cplex.LinearNumExpr();
+
+            INumExpr[] arrayOfEq = new INumExpr[oilCostList.Count];
             for (int i = 0; i < oilCostList.Count; i++)
             {
+                ILinearNumExpr Revenue = cplex.LinearNumExpr();
+                ILinearNumExpr StorageCost = cplex.LinearNumExpr();
+                ILinearNumExpr BuyCost = cplex.LinearNumExpr();
                 for (int j = 0; j < 2; j++) 
                 {
                     for (int k = 0; k < 3; k++)
@@ -81,11 +86,12 @@ namespace WDWR
                     Revenue.AddTerms(price, oilProduce[j]);
                     StorageCost.AddTerms(priceStorage, oilStore[j+1]);
                     BuyCost.AddTerms(oilCostList[0][j], oilBuy[j]);
-                }                
+                }
+                arrayOfEq[i] = cplex.Diff(srednia, cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)));
             }
             // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
-            cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
-            //cplex.AddMinimize(cplex.Abs(cplex.Max(cplex.Diff(srednia,))));
+            //cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
+            cplex.AddMinimize(cplex.Abs(cplex.Max(arrayOfEq))); 
 
 
             if (cplex.Solve())
