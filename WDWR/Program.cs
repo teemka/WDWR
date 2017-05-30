@@ -12,8 +12,7 @@ namespace WDWR
     {
         static void Main(string[] args)
         {
-            int scenarioCount = 10;
-            double srednia = 55155.51574465;
+            int scenarioCount = 100;            
             double[] price = { 170.0, 170.0, 170.0 };
             double[] priceStorage = { 10.0, 10.0, 10.0 };
             double[] hardness = { 8.4, 6.2, 2.0 };
@@ -22,24 +21,20 @@ namespace WDWR
             double[][] oilCostTotal = new double[2][];
             double[] profit = new double[scenarioCount];
             double[] risk = new double[scenarioCount];
-            List<double[][]> oilCostList = new List<double[][]>();
-            double[][] oilCost = new double[2][];
-            oilCost[0] = new double[3] { 1.159550009798596e+02, 1.018115866059220e+02, 1.128780935294160e+02 };
-            oilCost[1] = new double[3] { 100, 1.067537671189185e+02, 1.098041326934309e+02 };
+            List<double[][]> oilCostList = new List<double[][]>();            
 
             for (int i = 0; i < scenarioCount; i++)
             {
-                oilCostList.Add(GenerateRandomVector());
-                //oilCostList.Add(oilCost);
+                oilCostList.Add(GenerateRandomVector());                
             }
-            System.IO.StreamWriter zad2 = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\zad2.1.csv");
-            System.IO.StreamWriter vector = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\wektor.1.csv");
-            System.IO.StreamWriter FSD = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\FSD.1.csv");
-            zad2.WriteLine("Average Profit;Risk;limes");
+            System.IO.StreamWriter zad2 = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\zad2.csv");
+            System.IO.StreamWriter vector = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\wektor.csv");
+            System.IO.StreamWriter FSD = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\FSD.csv");
+            zad2.WriteLine("Risk;Avg Profit;lim");
 
-            for(int iter = 0; iter < 100; iter++)
+            for (int iter = 0; iter < 100; iter++)
             {
-                double lim = iter * 600;
+                double lim = iter * 550;
                 INumVar[][] oilStore = new INumVar[3][];
                 INumVar[][] oilBuy = new INumVar[2][];
                 INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
@@ -83,28 +78,43 @@ namespace WDWR
                     cplex.AddEq(oilStore[1][i], cplex.Sum(cplex.Diff(oilBuy[0][i], oilProduce[0][i]), oilStore[0][i])); // (Kupowane + zmagazynowane - produkowane) w tym miesiacu = zmagazynowane w nastepnym miesiacu
                     cplex.AddEq(oilStore[2][i], cplex.Sum(cplex.Diff(oilBuy[1][i], oilProduce[1][i]), oilStore[1][i]));
                 }
-                
+
+                ILinearNumExpr Revenue = cplex.LinearNumExpr();
+                ILinearNumExpr StorageCost = cplex.LinearNumExpr();
+                ILinearNumExpr BuyCost = cplex.LinearNumExpr();
+                for (int i = 0; i < oilCostList.Count; i++)
+                {                    
+                    for (int j = 0; j < 2; j++)
+                    {                        
+                        Revenue.AddTerms(price, oilProduce[j]);
+                        StorageCost.AddTerms(priceStorage, oilStore[j + 1]);
+                        BuyCost.AddTerms(oilCostList[i][j], oilBuy[j]);
+                    }    
+                }
+                double divisor = 1.0 / scenarioCount;
+                var mean = cplex.Prod(divisor, cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)));                
+
+                INumExpr[] profitScen = new INumExpr[oilCostList.Count];
                 INumExpr[] arrayOfEq = new INumExpr[oilCostList.Count];
                 for (int i = 0; i < oilCostList.Count; i++)
                 {
-                    ILinearNumExpr Revenue = cplex.LinearNumExpr();
-                    ILinearNumExpr StorageCost = cplex.LinearNumExpr();
-                    ILinearNumExpr BuyCost = cplex.LinearNumExpr();
+                    ILinearNumExpr Revenue1Scn = cplex.LinearNumExpr();
+                    ILinearNumExpr StorageCost1Scn = cplex.LinearNumExpr();
+                    ILinearNumExpr BuyCost1Scn = cplex.LinearNumExpr();
                     for (int j = 0; j < 2; j++)
                     {
                         for (int k = 0; k < 3; k++)
                             oilCostTotal[j][k] += oilCostList[i][j][k];
-                        Revenue.AddTerms(price, oilProduce[j]);
-                        StorageCost.AddTerms(priceStorage, oilStore[j + 1]);
-                        BuyCost.AddTerms(oilCostList[0][j], oilBuy[j]);
+                        Revenue1Scn.AddTerms(price, oilProduce[j]);
+                        StorageCost1Scn.AddTerms(priceStorage, oilStore[j + 1]);
+                        BuyCost1Scn.AddTerms(oilCostList[i][j], oilBuy[j]);
                     }
-                    cplex.AddLe(cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)), lim);
-                    arrayOfEq[i] = cplex.Diff(srednia, cplex.Diff(Revenue, cplex.Sum(BuyCost, StorageCost)));
-                }
-                // Funkcja Celu: zyski ze sprzedaży - koszta magazynowania - koszta kupowania materiału do produkcji
-                //cplex.AddMaximize(cplex.Diff(Revenue,cplex.Sum(BuyCost,StorageCost)));
+                    profitScen[i] = cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn));
+                    cplex.AddGe(profitScen[i], lim); // Określanie wymaganego poziomu średniej 
+                    arrayOfEq[i] = cplex.Abs(cplex.Diff(mean, cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn))));
+                }                
                 // Funkcja Celu: minimazlicacja odchylenia maksymalnego ryzyka
-                cplex.AddMinimize(cplex.Abs(cplex.Max(arrayOfEq)));
+                cplex.AddMinimize(cplex.Max(arrayOfEq));
 
                 if (cplex.Solve())
                 {
@@ -150,6 +160,8 @@ namespace WDWR
                         }
                     }
                     Console.WriteLine();
+
+                    // Manually calculating profit and risk for scenarios
                     for (int i = 0; i < oilCostList.Count; i++)
                     {
                         double revenue = 0;
@@ -162,7 +174,7 @@ namespace WDWR
                                 revenue += cplex.GetValue(oilProduce[j][k]) * 170;
                                 storageCost += cplex.GetValue(oilStore[j][k]) * 10;
                                 buyCost += cplex.GetValue(oilBuy[j][k]) * oilCostList[i][j][k];
-                                if(iter==0)
+                                if (iter == 0)
                                     vector.Write(oilCostList[i][j][k] + ";");
                             }
                         }
@@ -178,7 +190,7 @@ namespace WDWR
                     {
                         var diff = Math.Abs(profit[i] - avg);
                         risk[i] = diff;
-                        if(iter == 25 || iter==50 || iter==75)
+                        if (iter == 25 || iter == 50 || iter == 75)
                             FSD.WriteLine(profit[i] + ";" + risk[i]);
                         if (diff > riskMax)
                             riskMax = diff;
@@ -186,10 +198,18 @@ namespace WDWR
                     Console.WriteLine(" Average Profit =" + avg);
                     Console.WriteLine(" Risk =" + riskMax);
                     Console.WriteLine(" iter =" + iter);
+                    Console.WriteLine(" mean =" + cplex.GetValue(mean));
                     Console.WriteLine();                  
                     
-                    zad2.WriteLine(avg + ";" + riskMax + ";" + lim);
+                    zad2.WriteLine(cplex.ObjValue + ";" + cplex.GetValue(mean) + ";" + lim);
                 }
+                else
+                {
+                    System.Console.WriteLine();
+                    System.Console.WriteLine("Solution status = " + cplex.GetStatus());
+                    zad2.WriteLine(cplex.GetStatus() + ";" + cplex.GetStatus() + ";" + lim);
+                }
+                //Console.ReadKey();
             }
             zad2.Close();
             vector.Close();
@@ -207,15 +227,16 @@ namespace WDWR
                 {
                     //do
                     //{
-                    //    oilCost[i][j] = StudentT.Sample(excpectationVector[i*3 + j], Math.Sqrt(variance[i*3 + j]), 4);
+                    //    oilCost[i][j] = StudentT.Sample(excpectationVector[i * 3 + j], Math.Sqrt(variance[i * 3 + j]), 4);
                     //}
-                    //while (80 >= oilCost[i][j] && oilCost[i][j] >= 120);               
+                    //while (80 >= oilCost[i][j] && oilCost[i][j] >= 120);
+
                     oilCost[i][j] = StudentT.Sample(excpectationVector[i * 3 + j], Math.Sqrt(variance[i * 3 + j]), 4);
                     if (oilCost[i][j] < 80) oilCost[i][j] = 80;
                     if (oilCost[i][j] > 120) oilCost[i][j] = 120;
                 }
             }
             return oilCost;
-        }           
+        }        
     }
 }
