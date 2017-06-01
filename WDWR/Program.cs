@@ -32,13 +32,13 @@ namespace WDWR
             System.IO.StreamWriter FSD = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\FSD.test.csv");
             zad2.WriteLine("Risk;Avg Profit;lim");
             Dictionary<double, double> FSDdic = new Dictionary<double, double>();
-            double[] FSDval = new double[3*scenarioCount];
+            List<double> FSDval = new List<double>();
             int iterFSD = 0;
             double[][] profitFSD = new double[3][];
             int iterFSD1 = 0;
             for (int iter = 0; iter < 100; iter++)
             {
-                double lim = iter * 550;
+                double lim = iter * 525;
                 INumVar[][] oilStore = new INumVar[3][];
                 INumVar[][] oilBuy = new INumVar[2][];
                 INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
@@ -114,9 +114,10 @@ namespace WDWR
                         BuyCost1Scn.AddTerms(oilCostList[i][j], oilBuy[j]);
                     }
                     profitScen[i] = cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn));
-                    cplex.AddGe(profitScen[i], lim); // Określanie wymaganego poziomu średniej 
+                    
                     arrayOfEq[i] = cplex.Abs(cplex.Diff(mean, cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn))));
-                }                
+                }
+                cplex.AddGe(cplex.Prod(divisor, cplex.Sum(profitScen)), lim); // Określanie wymaganego poziomu średniej 
                 // Funkcja Celu: minimazlicacja odchylenia maksymalnego ryzyka
                 cplex.AddMinimize(cplex.Max(arrayOfEq));
 
@@ -193,14 +194,14 @@ namespace WDWR
                     {
                         var diff = Math.Abs(profit[i] - avg);
                         risk[i] = diff;
-                        if (iter == 25 || iter == 50 || iter == 75)
+                        if (iter == 20 || iter == 21 || iter == 30)
                         {
                             if (i == 0)
                                 profitFSD[iterFSD1] = new double[scenarioCount];
                             profitFSD[iterFSD1][i] = profit[i];                            
                             if (!FSDval.Contains(profit[i]) && profit[i]!=0)
                             {
-                                FSDval[iterFSD] = profit[i];
+                                FSDval.Add(profit[i]);
                                 iterFSD++;
                                 //FSD.WriteLine(profit[i] + ";" + risk[i]);
                             }
@@ -208,7 +209,7 @@ namespace WDWR
                         if (diff > riskMax)
                             riskMax = diff;
                     }
-                    if (iter == 25 || iter == 50 || iter == 75)
+                    if (iter == 20 || iter == 21 || iter == 30)
                         iterFSD1++;
                     Console.WriteLine(" Average Profit =" + avg);
                     Console.WriteLine(" Risk =" + riskMax);
@@ -226,17 +227,17 @@ namespace WDWR
                 }
                 //Console.ReadKey();
             }
-            Array.Sort(FSDval);
+            FSDval.Sort();
             for (int iter = 0; iter < 3; iter++)
             {
-                FSD.WriteLine(iter + ";risk");
+                FSD.WriteLine(iter + ";p");
                 double val = 0;
                 Array.Sort(profitFSD[iter]);
                 for (int i = 0; i < FSDval.Count(); i++)
-                {
-                    if(profitFSD[iter].Contains(FSDval[i]))
-                        val += 1.0 / (profitFSD[iter].Count() - 1);
+                {                    
                     FSD.WriteLine(FSDval[i] + ";" + val);
+                    if (profitFSD[iter].Contains(FSDval[i]))
+                        val += 1.0 / (profitFSD[iter].Count() - 1);
                 }
             }
             zad2.Close();
