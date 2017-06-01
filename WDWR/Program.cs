@@ -27,11 +27,15 @@ namespace WDWR
             {
                 oilCostList.Add(GenerateRandomVector());                
             }
-            System.IO.StreamWriter zad2 = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\zad2.csv");
-            System.IO.StreamWriter vector = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\wektor.csv");
-            System.IO.StreamWriter FSD = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\FSD.csv");
+            System.IO.StreamWriter zad2 = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\zad2.test.csv");
+            System.IO.StreamWriter vector = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\wektor.test.csv");
+            System.IO.StreamWriter FSD = new System.IO.StreamWriter(@"C:\Users\tomas\Google Drive\school\EiTI\WDWR\projekt\FSD.test.csv");
             zad2.WriteLine("Risk;Avg Profit;lim");
-
+            Dictionary<double, double> FSDdic = new Dictionary<double, double>();
+            double[] FSDval = new double[3*scenarioCount];
+            int iterFSD = 0;
+            double[][] profitFSD = new double[3][];
+            int iterFSD1 = 0;
             for (int iter = 0; iter < 100; iter++)
             {
                 double lim = iter * 550;
@@ -183,18 +187,29 @@ namespace WDWR
                         profit[i] = revenue - storageCost - buyCost;
                     }
                     double riskMax = 0;
-                    var avg = profit.Average();
-                    if (iter == 25 || iter == 50 || iter == 75)
-                        FSD.WriteLine(iter + ";risk");
+                    var avg = profit.Average();                  
+                        
                     for (int i = 0; i<oilCostList.Count; i++)
                     {
                         var diff = Math.Abs(profit[i] - avg);
                         risk[i] = diff;
                         if (iter == 25 || iter == 50 || iter == 75)
-                            FSD.WriteLine(profit[i] + ";" + risk[i]);
+                        {
+                            if (i == 0)
+                                profitFSD[iterFSD1] = new double[scenarioCount];
+                            profitFSD[iterFSD1][i] = profit[i];                            
+                            if (!FSDval.Contains(profit[i]) && profit[i]!=0)
+                            {
+                                FSDval[iterFSD] = profit[i];
+                                iterFSD++;
+                                //FSD.WriteLine(profit[i] + ";" + risk[i]);
+                            }
+                        }
                         if (diff > riskMax)
                             riskMax = diff;
-                    }                    
+                    }
+                    if (iter == 25 || iter == 50 || iter == 75)
+                        iterFSD1++;
                     Console.WriteLine(" Average Profit =" + avg);
                     Console.WriteLine(" Risk =" + riskMax);
                     Console.WriteLine(" iter =" + iter);
@@ -210,6 +225,19 @@ namespace WDWR
                     zad2.WriteLine(cplex.GetStatus() + ";" + cplex.GetStatus() + ";" + lim);
                 }
                 //Console.ReadKey();
+            }
+            Array.Sort(FSDval);
+            for (int iter = 0; iter < 3; iter++)
+            {
+                FSD.WriteLine(iter + ";risk");
+                double val = 0;
+                Array.Sort(profitFSD[iter]);
+                for (int i = 0; i < FSDval.Count(); i++)
+                {
+                    if(profitFSD[iter].Contains(FSDval[i]))
+                        val += 1.0 / (profitFSD[iter].Count() - 1);
+                    FSD.WriteLine(FSDval[i] + ";" + val);
+                }
             }
             zad2.Close();
             vector.Close();
