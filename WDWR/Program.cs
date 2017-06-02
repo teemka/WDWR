@@ -4,7 +4,6 @@ using System.Linq;
 using MathNet.Numerics.Distributions;
 using ILOG.Concert;
 using ILOG.CPLEX;
-using System.Threading.Tasks;
 
 namespace WDWR
 {
@@ -12,7 +11,7 @@ namespace WDWR
     {
         static void Main(string[] args)
         {
-            int scenarioCount = 100;            
+            int scenarioCount = 1000;            
             double[] price = { 170.0, 170.0, 170.0 };
             double[] priceStorage = { 10.0, 10.0, 10.0 };
             double[] hardness = { 8.4, 6.2, 2.0 };
@@ -36,9 +35,9 @@ namespace WDWR
             int iterFSD = 0;
             double[][] profitFSD = new double[3][];
             int iterFSD1 = 0;
-            for (int iter = 0; iter < 100; iter++)
+            for (int iter = 0; iter < 135; iter++)
             {
-                double lim = iter * 525;
+                double lim = (iter-24.0) * 500;
                 INumVar[][] oilStore = new INumVar[3][];
                 INumVar[][] oilBuy = new INumVar[2][];
                 INumVar[][] oilProduce = new INumVar[2][]; // [month][A-C]
@@ -113,8 +112,7 @@ namespace WDWR
                         StorageCost1Scn.AddTerms(priceStorage, oilStore[j + 1]);
                         BuyCost1Scn.AddTerms(oilCostList[i][j], oilBuy[j]);
                     }
-                    profitScen[i] = cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn));
-                    
+                    profitScen[i] = cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn));                    
                     arrayOfEq[i] = cplex.Abs(cplex.Diff(mean, cplex.Diff(Revenue1Scn, cplex.Sum(BuyCost1Scn, StorageCost1Scn))));
                 }
                 cplex.AddGe(cplex.Prod(divisor, cplex.Sum(profitScen)), lim); // Określanie wymaganego poziomu średniej 
@@ -221,8 +219,8 @@ namespace WDWR
                 }
                 else
                 {
-                    System.Console.WriteLine();
-                    System.Console.WriteLine("Solution status = " + cplex.GetStatus());
+                    Console.WriteLine();
+                    Console.WriteLine("Solution status = " + cplex.GetStatus());
                     zad2.WriteLine(cplex.GetStatus() + ";" + cplex.GetStatus() + ";" + lim);
                 }
                 //Console.ReadKey();
